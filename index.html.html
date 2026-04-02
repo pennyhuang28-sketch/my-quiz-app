@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雲端題庫練習系統</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+    <div id="app" class="max-w-4xl mx-auto">
+        <header class="text-center my-8">
+            <h1 class="text-3xl font-bold text-green-700">雲端錯題紀錄本</h1>
+            <p class="text-gray-500">資料已與 Google Sheet 同步</p>
+            <div v-if="loading" class="mt-2 text-orange-500 font-bold">同步中...</div>
+            <div class="mt-4 flex justify-center gap-4">
+                <button @click="view = 'manage'" :class="view === 'manage' ? 'bg-blue-600 text-white' : 'bg-white'" class="px-4 py-2 rounded shadow">題目管理</button>
+                <button @click="startExam" :class="view === 'exam' ? 'bg-green-600 text-white' : 'bg-white'" class="px-4 py-2 rounded shadow">模擬考</button>
+            </div>
+        </header>
+
+        <!-- 管理區 -->
+        <div v-if="view === 'manage'" class="bg-white p-6 rounded shadow">
+            <div class="grid gap-4 mb-6">
+                <input v-model="newQ" placeholder="題目 (Q)" class="border p-2 rounded w-full">
+                <input v-model="newA" placeholder="答案 (A)" class="border p-2 rounded w-full">
+                <button @click="addQuestion" :disabled="loading" class="bg-blue-500 text-white py-2 rounded disabled:bg-gray-400">新增題目</button>
+            </div>
+            <table class="w-full text-left border-collapse text-sm">
+                <thead><tr class="bg-gray-100"><th class="p-2 border">題目</th><th class="p-2 border">答案</th><th class="p-2 border">次數/錯誤</th></tr></thead>
+                <tbody>
+                    <tr v-for="q in questions" :key="q.id">
+                        <td class="p-2 border">{{ q.q }}</td>
+                        <td class="p-2 border">{{ q.a }}</td>
+                        <td class="p-2 border">{{ q.viewCount }} / {{ q.wrongCount }} ({{ calculateRate(q) }}%)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 練習區 -->
+        <div v-if="view === 'exam'" class="bg-white p-6 rounded shadow min-h-[300px] flex flex-col justify-center">
+            <div v-if="examList.length > 0 && !examFinished">
+                <div class="text-gray-400 mb-4 text-sm">題目 {{ currentStep + 1 }} / {{ examList.length }}</div>
+                <div class="text-2xl font-bold mb-8 p-6 bg-gray-50 rounded text-center">{{ examList[currentStep].q }}</div>
+                
+                <div v-if="showAnswer" class="mb-8 p-4 bg-green-50 border border-green-200 rounded">
+                    <div class="text-sm text-green-600">正確答案：</div>
+                    <div class="text-xl">{{ examList[currentStep].a }}</div>
+                </div>
+
+                <div class="flex gap-4">
+                    <button v-if="!showAnswer" @click="showAnswer = true" class="flex-1 bg-indigo-500 text-white py-3 rounded-lg">顯示答案</button>
+                    <template v-else>
+                        <button @click="handleAnswer(true)" :disabled="loading" class="flex-1 bg-green-500 text-white py-3 rounded-lg">我答對了</button>
+                        <button @click="handleAnswer(false)" :disabled="loading" class="flex-1 bg-red-500 text-white py-3 rounded-lg">我答錯了</button>
+                    </template>
+                </div>
+            </div>
+            <div v-else-if="examFinished" class="text-center">
+                <h2 class="text-2xl font-bold mb-4">測驗結束！</h2>
+                <button @click="view = 'manage'" class="text-blue-500 underline">返回管理介面</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '你的_GOOGLE_APPS_SCRIPT_網址'; // <--- 請更換此處
+
+        const { createApp, ref, onMounted } = Vue;
+        createApp({
+            setup() {
+                const view = ref('manage');
+                const questions = ref([]);
+                const loading = ref(false);
+                const newQ = ref('');
+                const newA = ref('');
+                const examList = ref([]);
+                const currentStep = ref(0);
+                const showAnswer = ref(false);
+                const examFinished = ref(false);
+
+                const fetchData = async () => {
+                    loading.value = true;
+                    try {
+                        const res = await fetch(API_URL);
+                        questions.value = await res.json();
+                    } catch (e) { alert('讀取失敗'); }
+                    loading.value = false;
+                };
+
+                onMounted(fetchData);
+
+                const addQuestion = async () => {
+                    if (!newQ.value || !newA.value) return;
+                    loading.value = true;
+                    const item = { action: 'add', id: Date.now(), q: newQ.value, a: newA.value };
+                    await fetch(API_URL, { method: 'POST', body: JSON.stringify(item) });
+                    newQ.value = ''; newA.value = '';
+                    await fetchData();
+                };
+
+                const startExam = () => {
+                    let all = [...questions.value];
+                    if (all.length === 0) return alert('題庫無資料');
+                    
+                    const isFirstTime = all.every(q => q.viewCount === 0);
+                    if (isFirstTime) {
+                        examList.value = all.sort(() => Math.random() - 0.5).slice(0, 30);
+                    } else {
+                        const highError = all.filter(q => q.viewCount > 0 && q.wrongCount > 0).sort((a,b) => (b.wrongCount/b.viewCount) - (a.wrongCount/a.viewCount));
+                        const never = all.filter(q => q.viewCount === 0).sort(() => Math.random() - 0.5);
+                        const others = all.filter(q => q.viewCount > 0 && q.wrongCount === 0).sort(() => Math.random() - 0.5);
+                        examList.value = [...highError, ...never, ...others].slice(0, 30);
+                    }
+                    currentStep.value = 0;
+                    showAnswer.value = false;
+                    examFinished.value = false;
+                    view.value = 'exam';
+                };
+
+                const handleAnswer = async (isCorrect) => {
+                    loading.value = true;
+                    const q = examList.value[currentStep.value];
+                    const target = questions.value.find(item => item.id == q.id);
+                    
+                    target.viewCount++;
+                    if (!isCorrect) target.wrongCount++;
+
+                    // 同步到 Google Sheet
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'update',
+                            id: target.id,
+                            viewCount: target.viewCount,
+                            wrongCount: target.wrongCount
+                        })
+                    });
+
+                    if (currentStep.value < examList.value.length - 1) {
+                        currentStep.value++;
+                        showAnswer.value = false;
+                    } else {
+                        examFinished.value = true;
+                    }
+                    loading.value = false;
+                };
+
+                const calculateRate = (q) => q.viewCount ? ((q.wrongCount / q.viewCount) * 100).toFixed(0) : 0;
+
+                return { view, questions, loading, newQ, newA, addQuestion, startExam, examList, currentStep, showAnswer, handleAnswer, examFinished, calculateRate };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
