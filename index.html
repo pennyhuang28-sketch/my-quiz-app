@@ -19,50 +19,50 @@
             </div>
         </header>
 
-        <!-- 管理區 -->
-        <div v-if="view === 'manage'" class="bg-white p-6 rounded shadow">
-            <div class="grid gap-4 mb-6">
-                <input v-model="newQ" placeholder="題目 (Q)" class="border p-2 rounded w-full">
-                <input v-model="newA" placeholder="答案 (A)" class="border p-2 rounded w-full">
-                <button @click="addQuestion" :disabled="loading" class="bg-blue-500 text-white py-2 rounded disabled:bg-gray-400">新增題目</button>
-            </div>
-            <table class="w-full text-left border-collapse text-sm">
-                <thead><tr class="bg-gray-100"><th class="p-2 border">題目</th><th class="p-2 border">答案</th><th class="p-2 border">次數/錯誤</th></tr></thead>
-                <tbody>
-                    <tr v-for="q in questions" :key="q.id">
-                        <td class="p-2 border">{{ q.q }}</td>
-                        <td class="p-2 border">{{ q.a }}</td>
-                        <td class="p-2 border">{{ q.viewCount }} / {{ q.wrongCount }} ({{ calculateRate(q) }}%)</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- 練習區 -->
-        <div v-if="view === 'exam'" class="bg-white p-6 rounded shadow min-h-[300px] flex flex-col justify-center">
-            <div v-if="examList.length > 0 && !examFinished">
-                <div class="text-gray-400 mb-4 text-sm">題目 {{ currentStep + 1 }} / {{ examList.length }}</div>
-                <div class="text-2xl font-bold mb-8 p-6 bg-gray-50 rounded text-center">{{ examList[currentStep].q }}</div>
-                
-                <div v-if="showAnswer" class="mb-8 p-4 bg-green-50 border border-green-200 rounded">
-                    <div class="text-sm text-green-600">正確答案：</div>
-                    <div class="text-xl">{{ examList[currentStep].a }}</div>
-                </div>
-
-                <div class="flex gap-4">
-                    <button v-if="!showAnswer" @click="showAnswer = true" class="flex-1 bg-indigo-500 text-white py-3 rounded-lg">顯示答案</button>
-                    <template v-else>
-                        <button @click="handleAnswer(true)" :disabled="loading" class="flex-1 bg-green-500 text-white py-3 rounded-lg">我答對了</button>
-                        <button @click="handleAnswer(false)" :disabled="loading" class="flex-1 bg-red-500 text-white py-3 rounded-lg">我答錯了</button>
-                    </template>
-                </div>
-            </div>
-            <div v-else-if="examFinished" class="text-center">
-                <h2 class="text-2xl font-bold mb-4">測驗結束！</h2>
-                <button @click="view = 'manage'" class="text-blue-500 underline">返回管理介面</button>
-            </div>
-        </div>
+<!-- 管理區：修改輸入框為 textarea -->
+<div v-if="view === 'manage'" class="bg-white p-6 rounded shadow">
+    <div class="grid gap-4 mb-6">
+        <!-- 題目輸入框 -->
+        <textarea v-model="newQ" placeholder="輸入題目 (Q) - 支援按 Enter 換行" 
+            class="border p-2 rounded w-full h-24 focus:ring-2 focus:ring-blue-400 outline-none"></textarea>
+        
+        <!-- 答案輸入框 -->
+        <textarea v-model="newA" placeholder="輸入答案 (A) - 支援按 Enter 換行" 
+            class="border p-2 rounded w-full h-20 focus:ring-2 focus:ring-blue-400 outline-none"></textarea>
+            
+        <button @click="addQuestion" :disabled="loading" 
+            class="bg-blue-500 text-white py-2 rounded hover:bg-blue-600 disabled:bg-gray-400 transition">
+            新增題目
+        </button>
     </div>
+    
+    <!-- 列表顯示也要加 whitespace-pre-wrap -->
+    <table class="w-full text-left border-collapse text-sm">
+        <thead><tr class="bg-gray-100"><th class="p-2 border">題目</th><th class="p-2 border">答案</th><th class="p-2 border w-24">次數/錯誤</th></tr></thead>
+        <tbody>
+            <tr v-for="q in questions" :key="q.id">
+                <td class="p-2 border whitespace-pre-wrap">{{ q.q }}</td>
+                <td class="p-2 border whitespace-pre-wrap">{{ q.a }}</td>
+                <td class="p-2 border text-center">{{ q.viewCount }} / {{ q.wrongCount }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- 練習區：讓題目與答案能顯示換行 -->
+<div v-if="view === 'exam'" ...>
+    <div v-if="examList.length > 0 && !examFinished">
+        <div class="text-gray-400 mb-4 text-sm">題目 {{ currentStep + 1 }} / {{ examList.length }}</div>
+        
+        <!-- 題目顯示區：加入 whitespace-pre-wrap -->
+        <div class="text-2xl font-bold mb-8 p-6 bg-gray-50 rounded text-center whitespace-pre-wrap text-left">{{ examList[currentStep].q }}</div>
+        
+        <!-- 答案顯示區：加入 whitespace-pre-wrap -->
+        <div v-if="showAnswer" class="mb-8 p-4 bg-green-50 border border-green-200 rounded">
+            <div class="text-sm text-green-600 mb-1">正確答案：</div>
+            <div class="text-xl whitespace-pre-wrap">{{ examList[currentStep].a }}</div>
+        </div>
+        ...
 
     <script>
         const API_URL = 'https://script.google.com/macros/s/AKfycbwzJJnmR7LPl2bKROMI9Eiu0BCV_AhYZ-R05uen_zMSlK9uoOT2OL8aSw_LL8ZRWgWsKw/exec'; // <--- 請更換此處
